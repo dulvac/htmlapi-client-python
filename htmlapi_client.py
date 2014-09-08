@@ -16,6 +16,7 @@
 import urllib
 import urllib2
 import urlparse
+import base64
 from lxml import etree
 
 def _normalize_whitespace(s):
@@ -38,6 +39,9 @@ def _extract(elt, doc):
     it as a Python value of some sort (possibly an object)."""
     if 'itemtype' in elt.attrib or 'itemscope' in elt.attrib:
         return MicrodataObject(elt, doc)
+    return _value(elt, doc)
+
+def _value(elt, doc):
     tag = elt.tag
     if tag == 'a' and 'href' in elt.attrib:
         href = elt.attrib['href']
@@ -46,7 +50,12 @@ def _extract(elt, doc):
             if target is not None: return _extract(target, doc)
         else:
             up = urlparse.urlparse(href)
-            remote_doc = enter(urlparse.urlunparse((up.scheme, up.netloc, up.path, up.params, up.query, '')))
+            # Get schema and host:port from the document url
+            doc_up = urlparse.urlparse(doc._url)
+            scheme = up.scheme if up.scheme else doc_up.scheme
+            netloc = up.netloc if up.netloc else doc_up.netloc
+            
+            remote_doc = enter(urlparse.urlunparse((scheme, netloc, up.path, up.params, up.query, '')))
             if up.fragment:
                 target = remote_doc._doc.getroot().find(".//*[@id='%s']" % up.fragment)
                 if target is not None: return _extract(target, remote_doc)
@@ -54,6 +63,8 @@ def _extract(elt, doc):
             return _extract(remote_doc._doc.getroot(), remote_doc)
     if tag == 'img': return elt.attrib['src']
     return _extract_text(elt)
+
+
 
 def _value_of(doc, fragment=''):
     if fragment:
@@ -72,7 +83,6 @@ class Link(object):
 
     def __repr__(self):
         return "<Link %s at 0x%x>" % (self._elt.attrib['href'], id(self))
-
 
     def follow(self):
         href = self._elt.attrib['href']
@@ -244,6 +254,10 @@ class MicrodataObject(object):
         if len(vals) == 0: return None
         if len(vals) == 1 or not allow_multi: return vals[0]
         return vals
+    
+    @property
+    def value(self):
+        return _value(self._root, self._doc)
 
     def get_props(self):
         return self._get_propmap().keys()
@@ -276,7 +290,7 @@ class MicrodataObject(object):
         if len(links) == 0: return None
         if len(links) == 1 or not allow_multi: return links[0]
         return out
-    
+
     def __getitem__(self, name):
         return self.get_property(name, raw=False, allow_multi=False)
 
@@ -340,8 +354,18 @@ class MicrodataDocument:
         return self._dfs_help(self._doc.getroot(), [])
     objects = property(get_toplevel_objects)
 
-def enter(url):
+# Base 64 authorization header for HTTP basic auth
+auth_header = None
+
+def enter(url, username=None, password=None):
+    global auth_header
+    request = urllib2.Request(url)
+    if username:
+      auth_header = base64.encodestring('%s:%s' % (username, password)).replace('\n', '')
+    if auth_header:
+      request.add_header("Authorization", "Basic %s" % auth_header) 
+    request.get_host()
     print "GET", url, "...",
-    f = urllib2.urlopen(url)
+    f = urllib2.urlopen(request)
     print "OK"
     return MicrodataDocument(f, url)
