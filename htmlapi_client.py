@@ -54,14 +54,17 @@ def _value(elt, doc):
             doc_up = urlparse.urlparse(doc._url)
             scheme = up.scheme if up.scheme else doc_up.scheme
             netloc = up.netloc if up.netloc else doc_up.netloc
-            
+
             remote_doc = enter(urlparse.urlunparse((scheme, netloc, up.path, up.params, up.query, '')))
+            #print remote_doc.__dict__
+            #print remote_doc.objects
             if up.fragment:
                 target = remote_doc._doc.getroot().find(".//*[@id='%s']" % up.fragment)
                 if target is not None: return _extract(target, remote_doc)
             if len(remote_doc.objects) == 1: return remote_doc.objects[0]
             return _extract(remote_doc._doc.getroot(), remote_doc)
     if tag == 'img': return elt.attrib['src']
+    if tag == 'meta': return elt.attrib['content']
     return _extract_text(elt)
 
 
