@@ -136,6 +136,10 @@ class Form(object):
             if 'type' in elt.attrib and elt.attrib['type'] == 'hidden':
                 continue
             if 'name' in elt.attrib: out.append(elt.attrib['name'])
+        for elt in self._elt.findall(".//textarea"):
+            if 'type' in elt.attrib and elt.attrib['type'] == 'hidden':
+                continue
+            if 'name' in elt.attrib: out.append(elt.attrib['name'])
         return out
     params = property(_get_params)
 
@@ -295,10 +299,10 @@ class MicrodataObject(object):
         return out
 
     def __getitem__(self, name):
-        return self.get_property(name, raw=False, allow_multi=False)
+        return self.get_property(name, raw=False, allow_multi=True)
 
     def __getattr__(self, name):
-        return self.get_property(name, raw=False, allow_multi=False)
+        return self.get_property(name, raw=False, allow_multi=True)
 
 class MicrodataDocument:
     """MicrodataDocuments represent a client application state, usually the
